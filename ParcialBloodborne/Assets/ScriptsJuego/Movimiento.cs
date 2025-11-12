@@ -31,12 +31,7 @@ public class Movimiento : MonoBehaviour
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
 
-        if (controller == null)
-            Debug.LogError("Falta CharacterController en el jugador.");
-        if (followCamera == null)
-            Debug.LogError("Asigna la cámara al script (followCamera).");
-        if (checkPiso == null)
-            Debug.LogError("Asigna el checkPiso (transform en los pies del jugador).");
+        
     }
 
     private void Update()
