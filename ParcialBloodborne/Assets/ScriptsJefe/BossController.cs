@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class BossController : MonoBehaviour
@@ -7,20 +8,25 @@ public class BossController : MonoBehaviour
     public Animator animator;
     public float maxHealth = 100f;
     public float currentHealth;
-    public float moveSpeed = 3f;
-    public float attackRange = 2f;
+    public float moveSpeed = 1f;
+    public float attackRange = 1.5f;
     public int attackDamage = 20;
     public float attackCooldown = 2f;
 
-    public Transform attackPoint;
+    public Transform rightHandPoint;
+    public Transform leftHandPoint;
+    public Transform rightFootPoint;
     public float attackRadius = 1f;
 
-    public float runHealthThreshold = 0.3f; // NUEVO: porcentaje de vida para empezar a correr (30%)
+    public float runHealthThreshold = 0.3f; // porcentaje de vida para empezar a correr (30%)
 
     private bool canAttack = true;
     private bool isPhase2 = false;
     private bool isDead = false;
     private bool isStunned = false;
+    private bool isAttacking = false;      // para no moverse mientras ataca
+    private Quaternion attackRotation;     // rotación fija durante el ataque
+    private int currentAttack = 1;         // cuál ataque está usando (1-4)
 
     void Start()
     {
@@ -29,14 +35,10 @@ public class BossController : MonoBehaviour
 
     void Update()
     {
-
-        // 🔴 Mientras no tengas el player real:
         if (player == null) return;
-
         if (isDead || isStunned) return;
 
         PlayerHealth playerHealth = player.GetComponent<PlayerHealth>();
-
         if (playerHealth != null && playerHealth.isDead)
         {
             animator.SetBool("isMoving", false);
@@ -45,69 +47,155 @@ public class BossController : MonoBehaviour
 
         float distance = Vector3.Distance(transform.position, player.position);
 
-        // Rotar hacia el jugador
-        Vector3 lookDir = (player.position - transform.position);
-        lookDir.y = 0;
-        if (lookDir != Vector3.zero)
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDir), Time.deltaTime * 5f);
-
-        if (distance > attackRange)
+        // Rotar hacia el jugador solo si NO está atacando
+        if (!isAttacking)
         {
-            transform.position += transform.forward * moveSpeed * Time.deltaTime;
-            animator.SetBool("isMoving", true);
+            Vector3 lookDir = (player.position - transform.position);
+            lookDir.y = 0;
+
+            if (lookDir != Vector3.zero)
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(lookDir),
+                    Time.deltaTime * 5f);
         }
         else
         {
-            animator.SetBool("isMoving", false);
-            if (canAttack)
-                StartCoroutine(Attack());
+            // Mantener la rotación guardada al empezar el ataque
+            transform.rotation = attackRotation;
         }
 
-        // NUEVO: decidir si debe correr o no (según % de vida)
+        // ----------- MOVIMIENTO + isMoving -----------
+        bool shouldMove = distance > attackRange && !isAttacking;
+
+        // el Animator siempre sabe si se está moviendo o no
+        animator.SetBool("isMoving", shouldMove);
+
+        if (shouldMove)
+        {
+            // solo mover el boss si realmente debe moverse
+            transform.position += transform.forward * moveSpeed * Time.deltaTime;
+        }
+        else
+        {
+            // atacar solo si está realmente dentro del rango (con pequeño margen)
+            if (canAttack && !isAttacking && distance <= attackRange - 0.2f)
+            {
+                StartCoroutine(Attack());
+            }
+        }
+        // ---------------------------------------------
+
+        // decidir si debe correr o no (según % de vida)
         bool shouldRun = currentHealth <= maxHealth * runHealthThreshold;
         animator.SetBool("isRunning", shouldRun);
 
-        // Revisar cambio de fase
+        // Revisar cambio de fase (50% de vida)
         if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
         {
             StartPhase2();
+        }
+
+        // failsafe de emergencia si por bug el boss se queda pegado en un ataque
+        AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
+
+        if (isAttacking && info.normalizedTime >= 1f && !info.IsTag("Attack"))
+        {
+            isAttacking = false;
+            canAttack = true;
         }
     }
 
     IEnumerator Attack()
     {
         canAttack = false;
-        int num = Random.Range(1, 5);
+        isAttacking = true;
+
+        // Guardar la rotación actual del jefe (mirando hacia donde atacó)
+        attackRotation = transform.rotation;
+
+        int num = Random.Range(1, 5); // 1,2,3,4
+        currentAttack = num;
+
         animator.SetInteger("NumAttack", num);
         animator.SetTrigger("Attack");
 
+        // solo controlamos el cooldown aquí
         yield return new WaitForSeconds(attackCooldown);
+
+        canAttack = true;
+        // OJO: isAttacking se pone a false en EndAttack() (evento de animación)
+    }
+
+    // Llamado desde un Animation Event al final de cada animación de ataque
+    public void EndAttack()
+    {
+        isAttacking = false;
         canAttack = true;
     }
 
+    // Llamado desde un Animation Event en el frame del golpe
     public void AnalizarAtaque()
     {
-        Collider[] hits = Physics.OverlapSphere(attackPoint.position, attackRadius);
+        // Para este evento queremos evitar daño múltiple por estar dentro de varios puntos
+        HashSet<PlayerHealth> yaGolpeados = new HashSet<PlayerHealth>();
+
+        switch (currentAttack)
+        {
+            case 1:
+                // ATTACK 1: salto -> usa las 3 hitbox pero solo 1 daño por jugador
+                RevisarGolpe(rightHandPoint, yaGolpeados);
+                RevisarGolpe(leftHandPoint, yaGolpeados);
+                RevisarGolpe(rightFootPoint, yaGolpeados);
+                break;
+
+            case 2:
+                // ATTACK 2: solo mano derecha
+                RevisarGolpe(rightHandPoint, yaGolpeados);
+                break;
+
+            case 3:
+                // ATTACK 3: solo pie derecho
+                RevisarGolpe(rightFootPoint, yaGolpeados);
+                break;
+
+            case 4:
+                // ATTACK 4: combo mano derecha + izquierda
+                // En cada EVENTO de la animación se evalúan ambas.
+                // Si tienes 2 eventos (uno en cada golpe), el jugador
+                // podrá recibir 2 daños: uno por cada evento.
+                RevisarGolpe(rightHandPoint, yaGolpeados);
+                RevisarGolpe(leftHandPoint, yaGolpeados);
+                break;
+        }
+    }
+
+    void RevisarGolpe(Transform point, HashSet<PlayerHealth> yaGolpeados)
+    {
+        if (point == null) return;
+
+        Collider[] hits = Physics.OverlapSphere(point.position, attackRadius);
 
         foreach (var hit in hits)
         {
-            if (hit.CompareTag("Player"))
+            if (!hit.CompareTag("Player")) continue;
+
+            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
+            if (playerHealth == null) continue;
+
+            // Evitar que el mismo Player reciba múltiples golpes en este mismo evento
+            if (yaGolpeados.Contains(playerHealth)) continue;
+            yaGolpeados.Add(playerHealth);
+
+            if (playerHealth.isParrying)
             {
-                PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
-                if (playerHealth != null)
-                {
-                    // Si el jugador está haciendo parry, el boss se aturde
-                    if (playerHealth.isParrying)
-                    {
-                        Debug.Log("⚡ Parry exitoso! Boss aturdido.");
-                        StartCoroutine(Stun(2f));
-                    }
-                    else
-                    {
-                        playerHealth.Damage(attackDamage);
-                        Debug.Log("Boss golpea al jugador!");
-                    }
-                }
+                Debug.Log("Parry exitoso! Boss aturdido.");
+                StartCoroutine(Stun(2f));
+            }
+            else
+            {
+                playerHealth.Damage(attackDamage);
+                Debug.Log("Boss golpea al jugador!");
             }
         }
     }
@@ -153,9 +241,18 @@ public class BossController : MonoBehaviour
 
     void OnDrawGizmosSelected()
     {
-        if (attackPoint == null) return;
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(attackPoint.position, attackRadius);
+
+        if (rightHandPoint != null)
+            Gizmos.DrawWireSphere(rightHandPoint.position, attackRadius);
+
+        if (leftHandPoint != null)
+            Gizmos.DrawWireSphere(leftHandPoint.position, attackRadius);
+
+        if (rightFootPoint != null)
+            Gizmos.DrawWireSphere(rightFootPoint.position, attackRadius);
     }
 }
+
+
 

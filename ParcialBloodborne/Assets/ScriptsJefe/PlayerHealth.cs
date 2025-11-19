@@ -19,11 +19,14 @@ public class PlayerHealth : MonoBehaviour
         if (isDead) return;
 
         currentHealth -= amount;
+        Debug.Log("Jugador recibe " + amount + " de daño. Vida actual: " + currentHealth);
+
         if (currentHealth <= 0)
         {
             currentHealth = 0;
             isDead = true;
-            // aquí puedes poner animación de muerte del jugador
+            Debug.Log("Jugador de prueba murió.");
+            // aquí luego pondrán animación de muerte real
         }
     }
 }
