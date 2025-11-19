@@ -160,10 +160,11 @@ public class PlayerCombat : MonoBehaviour
         {
             if (hit.CompareTag("Enemy"))
             {
-                EnemigoIA enemy = hit.GetComponent<EnemigoIA>();
-                if (enemy != null)
+                EnemyHealth enemyHealth = hit.GetComponent<EnemyHealth>();
+
+                if (enemyHealth != null)
                 {
-                    enemy.TomarDaño(attackDamage);
+                    enemyHealth.RecibirDaño(attackDamage);
                     Debug.Log("Jugador golpea al enemigo!");
                 }
             }

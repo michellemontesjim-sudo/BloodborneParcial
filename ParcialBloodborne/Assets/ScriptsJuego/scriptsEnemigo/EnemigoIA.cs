@@ -11,7 +11,7 @@ public class EnemigoIA : MonoBehaviour
     public Transform objetivo; // El player
 
     [Header("Stats del enemigo")]
-    public float vida = 100f;
+    
     public float rangoDeteccion = 12f;
     public float rangoAtaque = 2f;
     public float daño = 15f;
@@ -29,7 +29,7 @@ public class EnemigoIA : MonoBehaviour
 
     void Update()
     {
-        if (vida <= 0) return;
+        
 
         float distancia = Vector3.Distance(transform.position, objetivo.position);
 
@@ -103,16 +103,8 @@ public class EnemigoIA : MonoBehaviour
         yaAtaco = false;
     }
 
-    // Llamar desde animación o cuando reciba daño
-    public void TomarDaño(float cantidad)
-    {
-        vida -= cantidad;
 
-        if (vida <= 0)
-        {
-            Muerte();
-        }
-    }
+    
 
     public void Muerte()
     {

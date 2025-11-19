@@ -18,7 +18,7 @@ public class EnemyHealth : MonoBehaviour
 
         if (salud <= 0)
         {
-            ai.Muerte();
+            ai.Muerte();       // que IA maneje la animación
             Destroy(gameObject, 3f);
         }
     }
