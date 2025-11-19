@@ -138,7 +138,7 @@ public class BossController : MonoBehaviour
     public void AnalizarAtaque()
     {
         // Para este evento queremos evitar daño múltiple por estar dentro de varios puntos
-        HashSet<PlayerHealth> yaGolpeados = new HashSet<PlayerHealth>();
+        HashSet<PlayerHealthhhh> yaGolpeados = new HashSet<PlayerHealthhhh>();
 
         switch (currentAttack)
         {
@@ -170,7 +170,7 @@ public class BossController : MonoBehaviour
         }
     }
 
-    void RevisarGolpe(Transform point, HashSet<PlayerHealth> yaGolpeados)
+    void RevisarGolpe(Transform point, HashSet<PlayerHealthhhh> yaGolpeados)
     {
         if (point == null) return;
 
@@ -180,7 +180,7 @@ public class BossController : MonoBehaviour
         {
             if (!hit.CompareTag("Player")) continue;
 
-            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
+            PlayerHealthhhh playerHealth = hit.GetComponent<PlayerHealthhhh>();
             if (playerHealth == null) continue;
 
             // Evitar que el mismo Player reciba múltiples golpes en este mismo evento
