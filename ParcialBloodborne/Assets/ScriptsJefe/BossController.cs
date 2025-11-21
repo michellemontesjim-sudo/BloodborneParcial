@@ -24,13 +24,16 @@ public class BossController : MonoBehaviour
     private bool isPhase2 = false;
     private bool isDead = false;
     private bool isStunned = false;
-    private bool isAttacking = false;      // para no moverse mientras ataca
-    private Quaternion attackRotation;     // rotación fija durante el ataque
-    private int currentAttack = 1;         // cuál ataque está usando (1-4)
+    private bool isAttacking = false;
+    private Quaternion attackRotation;
+    private int currentAttack = 1;
 
     void Start()
     {
         currentHealth = maxHealth;
+
+        // Por seguridad: empezamos sin ataque seleccionado
+        animator.SetInteger("NumAttack", 0);
     }
 
     void Update()
@@ -38,139 +41,155 @@ public class BossController : MonoBehaviour
         if (player == null) return;
         if (isDead || isStunned) return;
 
-        PlayerHealthhhh playerHealth = player.GetComponent<PlayerHealthhhh>();
+        PlayerHealth playerHealth = player.GetComponent<PlayerHealth>();
         if (playerHealth != null && playerHealth.isDead)
         {
             animator.SetBool("isMoving", false);
-            return; // no atacar si el jugador está muerto
+            return;
         }
 
         float distance = Vector3.Distance(transform.position, player.position);
 
-        // Rotar hacia el jugador solo si NO está atacando
+        // ---------------- ROTACIÓN ----------------
         if (!isAttacking)
         {
             Vector3 lookDir = (player.position - transform.position);
             lookDir.y = 0;
 
             if (lookDir != Vector3.zero)
+            {
                 transform.rotation = Quaternion.Slerp(
                     transform.rotation,
                     Quaternion.LookRotation(lookDir),
-                    Time.deltaTime * 5f);
+                    Time.deltaTime * 5f
+                );
+            }
         }
         else
         {
-            // Mantener la rotación guardada al empezar el ataque
             transform.rotation = attackRotation;
         }
 
-        // ----------- MOVIMIENTO + isMoving -----------
-        bool shouldMove = distance > attackRange && !isAttacking;
+        // -------------- MOVIMIENTO / ATAQUE --------------
+        bool inAttackRange = distance <= attackRange;
+        bool shouldMove = !isAttacking && !inAttackRange;
 
-        // el Animator siempre sabe si se está moviendo o no
         animator.SetBool("isMoving", shouldMove);
 
         if (shouldMove)
         {
-            // solo mover el boss si realmente debe moverse
             transform.position += transform.forward * moveSpeed * Time.deltaTime;
         }
         else
         {
-            // atacar solo si está realmente dentro del rango (con pequeño margen)
-            if (canAttack && !isAttacking && distance <= attackRange - 0.2f)
+            if (!isAttacking && canAttack && inAttackRange)
             {
                 StartCoroutine(Attack());
             }
         }
-        // ---------------------------------------------
 
-        // decidir si debe correr o no (según % de vida)
+        // -------------- FASE 2 / CORRER --------------
         bool shouldRun = currentHealth <= maxHealth * runHealthThreshold;
         animator.SetBool("isRunning", shouldRun);
 
-        // Revisar cambio de fase (50% de vida)
         if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
         {
             StartPhase2();
         }
 
-        // failsafe de emergencia si por bug el boss se queda pegado en un ataque
-        AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
-
-        if (isAttacking && info.normalizedTime >= 1f && !info.IsTag("Attack"))
-        {
-            isAttacking = false;
-            canAttack = true;
-        }
+        // -------------- ANTI-BUG DE ATAQUE --------------
+        ForceEndAttackIfStuck();
     }
 
     IEnumerator Attack()
     {
+        Debug.Log("START ATTACK");
+
+        if (!canAttack || isAttacking)
+            yield break;   // por seguridad, evitar ataques dobles
+
         canAttack = false;
         isAttacking = true;
 
-        // Guardar la rotación actual del jefe (mirando hacia donde atacó)
+        // Guardar rotación con la que empieza el ataque
         attackRotation = transform.rotation;
 
-        int num = Random.Range(1, 5); // 1,2,3,4
+        // Elegir un ataque aleatorio entre 1 y 4
+        int num = Random.Range(1, 5);
         currentAttack = num;
 
-        animator.SetInteger("NumAttack", num);
-        animator.SetTrigger("Attack");
+        // Esto es lo único que necesita el Animator para ir al ataque
+        animator.SetInteger("NumAttack", currentAttack);
 
-        // solo controlamos el cooldown aquí
+        // Solo manejamos el cooldown aquí
         yield return new WaitForSeconds(attackCooldown);
 
         canAttack = true;
-        // OJO: isAttacking se pone a false en EndAttack() (evento de animación)
+
+        Debug.Log("END ATTACK");
     }
 
-    // Llamado desde un Animation Event al final de cada animación de ataque
+
+    // Llamado por Animation Event (si lo tienes) PERO
+    // también lo llamamos nosotros desde ForceEndAttackIfStuck()
     public void EndAttack()
     {
+        Debug.Log("EndAttack EVENT");
+
         isAttacking = false;
-        canAttack = true;
+        animator.SetInteger("NumAttack", 0);   // volver a “sin ataque”
     }
 
-    // Llamado desde un Animation Event en el frame del golpe
+
+    // POR SI EL EVENTO FALLA EN ALGÚN ATAQUE
+    void ForceEndAttackIfStuck()
+    {
+        if (!isAttacking) return;
+
+        AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
+
+        bool isInAttackState =
+            info.IsName("attack 1") ||
+            info.IsName("attack 2") ||
+            info.IsName("attack 3") ||
+            info.IsName("attack 4");
+
+        if (isInAttackState && info.normalizedTime >= 0.98f)
+        {
+            Debug.Log("Force EndAttack by code (normalizedTime) " + info.normalizedTime);
+            EndAttack();
+        }
+    }
+
+    // Llamado desde Animation Event para aplicar daño
     public void AnalizarAtaque()
     {
-        // Para este evento queremos evitar daño múltiple por estar dentro de varios puntos
-        HashSet<PlayerHealthhhh> yaGolpeados = new HashSet<PlayerHealthhhh>();
+        HashSet<PlayerHealth> yaGolpeados = new HashSet<PlayerHealth>();
 
         switch (currentAttack)
         {
             case 1:
-                // ATTACK 1: salto -> usa las 3 hitbox pero solo 1 daño por jugador
                 RevisarGolpe(rightHandPoint, yaGolpeados);
                 RevisarGolpe(leftHandPoint, yaGolpeados);
                 RevisarGolpe(rightFootPoint, yaGolpeados);
                 break;
 
             case 2:
-                // ATTACK 2: solo mano derecha
                 RevisarGolpe(rightHandPoint, yaGolpeados);
                 break;
 
             case 3:
-                // ATTACK 3: solo pie derecho
                 RevisarGolpe(rightFootPoint, yaGolpeados);
                 break;
 
             case 4:
-                // ATTACK 4: combo mano derecha + izquierda
-                // En cada EVENTO de la animación se evalúan ambas.
-                // Si tienes 2 eventos (uno en cada golpe), el jugador
-                // podrá recibir 2 daños: uno por cada evento.
                 RevisarGolpe(rightHandPoint, yaGolpeados);
                 RevisarGolpe(leftHandPoint, yaGolpeados);
                 break;
         }
     }
 
-    void RevisarGolpe(Transform point, HashSet<PlayerHealthhhh> yaGolpeados)
+    void RevisarGolpe(Transform point, HashSet<PlayerHealth> yaGolpeados)
     {
         if (point == null) return;
 
@@ -180,10 +199,9 @@ public class BossController : MonoBehaviour
         {
             if (!hit.CompareTag("Player")) continue;
 
-            PlayerHealthhhh playerHealth = hit.GetComponent<PlayerHealthhhh>();
+            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
             if (playerHealth == null) continue;
 
-            // Evitar que el mismo Player reciba múltiples golpes en este mismo evento
             if (yaGolpeados.Contains(playerHealth)) continue;
             yaGolpeados.Add(playerHealth);
 
@@ -194,7 +212,7 @@ public class BossController : MonoBehaviour
             }
             else
             {
-                playerHealth.Damage(attackDamage);
+                playerHealth.TomarDaño(attackDamage);
                 Debug.Log("Boss golpea al jugador!");
             }
         }
@@ -253,6 +271,7 @@ public class BossController : MonoBehaviour
             Gizmos.DrawWireSphere(rightFootPoint.position, attackRadius);
     }
 }
+
 
 
 

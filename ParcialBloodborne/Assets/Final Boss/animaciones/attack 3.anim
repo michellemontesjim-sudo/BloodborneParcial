@@ -125470,7 +125470,7 @@ AnimationClip:
     floatParameter: 0
     intParameter: 0
     messageOptions: 0
-  - time: 3.5
+  - time: 3.3333333
     functionName: EndAttack
     data: 
     objectReferenceParameter: {fileID: 0}
