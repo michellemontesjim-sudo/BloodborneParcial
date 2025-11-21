@@ -11,45 +11,83 @@ public class EnemigoIA : MonoBehaviour
     public Transform objetivo; // El player
 
     [Header("Stats del enemigo")]
-    
     public float rangoDeteccion = 12f;
     public float rangoAtaque = 2f;
     public float daño = 15f;
     public float tiempoEntreAtaques = 1.2f;
+
+    [Header("Patrullaje")]
+    public Transform[] puntosPatrulla;
+    public float esperaPatrulla = 2f;
+    int indicePatrulla = 0;
+    bool esperando = false;
 
     bool yaAtaco = false;
 
     void Start()
     {
         if (objetivo == null)
-        {
             objetivo = GameObject.FindGameObjectWithTag("Player").transform;
-        }
     }
 
     void Update()
     {
-        
-
         float distancia = Vector3.Distance(transform.position, objetivo.position);
 
-        // 1️⃣ Detección del jugador
+        // Prioridad 1: Perseguir jugador
         if (distancia <= rangoDeteccion && distancia > rangoAtaque)
         {
             Perseguir();
         }
-        // 2️⃣ Ataque
+        // Prioridad 2: Atacar
         else if (distancia <= rangoAtaque)
         {
             Atacar();
         }
-        // 3️⃣ Idle
+        // Prioridad 3: Patrullar
         else
         {
-            Idle();
+            Patrullar();
         }
     }
 
+    // ---------- PATRULLAJE ----------
+    void Patrullar()
+    {
+        if (puntosPatrulla.Length == 0)
+        {
+            Idle();
+            return;
+        }
+
+        if (esperando) return;
+
+        anim.SetBool("isMoving", true);
+        agente.isStopped = false;
+
+        agente.SetDestination(puntosPatrulla[indicePatrulla].position);
+
+        if (!agente.pathPending && agente.remainingDistance < 0.4f)
+        {
+            StartCoroutine(EsperarYSeguir());
+        }
+    }
+
+    IEnumerator EsperarYSeguir()
+    {
+        esperando = true;
+        anim.SetBool("isMoving", false);
+
+        yield return new WaitForSeconds(esperaPatrulla);
+
+        indicePatrulla++;
+        if (indicePatrulla >= puntosPatrulla.Length)
+            indicePatrulla = 0;
+
+        esperando = false;
+    }
+
+    // ---------- PERSEGUIR ----------
     void Perseguir()
     {
         agente.isStopped = false;
@@ -58,59 +96,51 @@ public class EnemigoIA : MonoBehaviour
         anim.SetBool("isMoving", true);
     }
 
+    // ---------- IDLE ----------
     void Idle()
     {
         agente.isStopped = true;
-
         anim.SetBool("isMoving", false);
     }
 
+    // ---------- ATAQUE ----------
     void Atacar()
     {
         agente.isStopped = true;
 
         transform.LookAt(objetivo);
-
-        anim.SetBool("isMoving", false); // No se mueve mientras ataca
+        anim.SetBool("isMoving", false);
 
         if (!yaAtaco)
         {
-            anim.SetTrigger("isAttacking");  
+            anim.SetTrigger("isAttacking");
             StartCoroutine(HacerDaño());
         }
     }
 
-    System.Collections.IEnumerator HacerDaño()
+    IEnumerator HacerDaño()
     {
         yaAtaco = true;
-
-        // Espera medio segundo para sincronizar con la animación
         yield return new WaitForSeconds(0.5f);
 
         float distancia = Vector3.Distance(transform.position, objetivo.position);
 
         if (distancia <= rangoAtaque + 0.3f)
         {
-            // Golpea al player
             PlayerHealth ph = objetivo.GetComponent<PlayerHealth>();
             if (ph != null)
-            {
                 ph.TomarDaño(daño);
-            }
         }
 
         yield return new WaitForSeconds(tiempoEntreAtaques);
         yaAtaco = false;
     }
 
-
-    
-
+    // ---------- MUERTE ----------
     public void Muerte()
     {
         agente.isStopped = true;
         anim.SetTrigger("Death");
-
-        Destroy(gameObject, 3f); // tiempos opciónal
+        Destroy(gameObject, 3f);
     }
 }
