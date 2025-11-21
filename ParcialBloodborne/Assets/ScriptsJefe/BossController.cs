@@ -38,7 +38,7 @@ public class BossController : MonoBehaviour
         if (player == null) return;
         if (isDead || isStunned) return;
 
-        PlayerHealth playerHealth = player.GetComponent<PlayerHealth>();
+        PlayerHealthhhh playerHealth = player.GetComponent<PlayerHealthhhh>();
         if (playerHealth != null && playerHealth.isDead)
         {
             animator.SetBool("isMoving", false);
