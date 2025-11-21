@@ -32,13 +32,28 @@ public class BossController : MonoBehaviour
     {
         currentHealth = maxHealth;
 
+        if (animator == null)
+            animator = GetComponent<Animator>();
+
         // Por seguridad: empezamos sin ataque seleccionado
         animator.SetInteger("NumAttack", 0);
     }
 
     void Update()
     {
-        if (player == null) return;
+        // ---------------------------------------------------------
+        // 🔍 Buscar automáticamente al jugador real en la escena
+        // ---------------------------------------------------------
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+            else
+                return; // no hay jugador aún, no hacemos nada este frame
+        }
+        // ---------------------------------------------------------
+
         if (isDead || isStunned) return;
 
         PlayerHealth playerHealth = player.GetComponent<PlayerHealth>();
@@ -129,7 +144,6 @@ public class BossController : MonoBehaviour
         Debug.Log("END ATTACK");
     }
 
-
     // Llamado por Animation Event (si lo tienes) PERO
     // también lo llamamos nosotros desde ForceEndAttackIfStuck()
     public void EndAttack()
@@ -139,7 +153,6 @@ public class BossController : MonoBehaviour
         isAttacking = false;
         animator.SetInteger("NumAttack", 0);   // volver a “sin ataque”
     }
-
 
     // POR SI EL EVENTO FALLA EN ALGÚN ATAQUE
     void ForceEndAttackIfStuck()
@@ -253,7 +266,10 @@ public class BossController : MonoBehaviour
         isDead = true;
         animator.SetTrigger("Die");
         Debug.Log("Boss derrotado");
-        GetComponent<Collider>().enabled = false;
+
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
         this.enabled = false;
     }
 
@@ -271,6 +287,7 @@ public class BossController : MonoBehaviour
             Gizmos.DrawWireSphere(rightFootPoint.position, attackRadius);
     }
 }
+
 
 
 
