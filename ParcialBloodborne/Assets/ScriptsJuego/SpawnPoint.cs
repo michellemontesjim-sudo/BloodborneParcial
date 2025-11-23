@@ -3,30 +3,18 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class SpawnPoint : MonoBehaviour
+public class SceneLoader : MonoBehaviour
 {
-    public Transform spawnPoint;
+    public string sceneToLoad = "Final Boss";
 
-    private void OnEnable()
+    private void OnTriggerEnter(Collider other)
     {
-        SceneManager.sceneLoaded += OnSceneLoaded;
-    }
+        // Subimos al objeto raíz del player
+        Transform root = other.transform.root;
 
-    private void OnDisable()
-    {
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-    }
-
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (scene.name == "Final Boss") // nombre exacto de la escena
+        if (root.CompareTag("Player"))
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-            if (playerObj != null)
-            {
-                playerObj.transform.position = spawnPoint.position;
-                playerObj.transform.rotation = spawnPoint.rotation;
-            }
+            SceneManager.LoadScene(sceneToLoad);
         }
     }
 }

@@ -9,7 +9,14 @@ public class ItemPickup : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player"))
+        //if (other.CompareTag("Player"))
+        //{
+        //isPlayerNear = true;
+        //UIInteraccion.Instance.ShowText($"Presiona E para recoger {itemData.nombre}");
+        //}
+        Transform root = other.transform.root;  // sube al objeto raíz
+
+        if (root.CompareTag("Player"))
         {
             isPlayerNear = true;
             UIInteraccion.Instance.ShowText($"Presiona E para recoger {itemData.nombre}");
@@ -18,7 +25,8 @@ public class ItemPickup : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Player"))
+        Transform root = other.transform.root;
+        if (root.CompareTag("Player"))
         {
             isPlayerNear = false;
             UIInteraccion.Instance.HideText();

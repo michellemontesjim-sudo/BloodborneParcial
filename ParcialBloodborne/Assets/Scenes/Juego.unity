@@ -45299,6 +45299,23 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 730965302}
   m_CullTransparentMesh: 1
+--- !u!1 &732468387 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6673164230798402334, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+  m_PrefabInstance: {fileID: 4881785441743180994}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &732468389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 732468387}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 14972a23df17dbe4ba95c7fa44a814ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &732755219
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -122933,7 +122950,7 @@ GameObject:
   - component: {fileID: 1937852126}
   - component: {fileID: 1937852125}
   m_Layer: 0
-  m_Name: GameManager
+  m_Name: SceneLoader
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -122951,7 +122968,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a9b994c355fd0d0498bdd200ee7b9463, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spawnPoint: {fileID: 0}
+  sceneToLoad: Final Boss
 --- !u!4 &1937852126
 Transform:
   m_ObjectHideFlags: 0
@@ -128732,7 +128749,7 @@ MonoBehaviour:
   m_OverrideTileSize: 0
   m_TileSize: 256
   m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.16666667
+  m_VoxelSize: 0.13333334
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 41e5ab1b93788ea4a98e21d8613963be, type: 2}
   m_BuildHeightMesh: 0
@@ -135023,6 +135040,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1947550762450026012, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+      propertyPath: m_Layer
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1947550762450026012, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+      propertyPath: m_TagString
+      value: Untagged
+      objectReference: {fileID: 0}
     - target: {fileID: 3403477319937647926, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
       propertyPath: m_LocalPosition.x
       value: 2.6140676
@@ -135067,11 +135092,19 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 6673164230798402334, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+      propertyPath: m_TagString
+      value: Player
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 7239486835639609291, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+    - {fileID: 963361874142102051, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6673164230798402334, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 732468389}
   m_SourcePrefab: {fileID: 100100000, guid: 61aa4a4e040c3c04780291f00e7781fe, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

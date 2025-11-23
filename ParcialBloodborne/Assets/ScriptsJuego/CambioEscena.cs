@@ -9,8 +9,9 @@ public class CambioEscena : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        Transform root = other.transform.root;
         // Opcional: solo cambiar si quien entra es el jugador
-        if (other.CompareTag("Player"))
+        if (root.CompareTag("Player"))
         {
             SceneManager.LoadScene("Final Boss");
         }
