@@ -41,98 +41,83 @@ public class BossController : MonoBehaviour
 
     void Update()
     {
-            // 1) Buscar SIEMPRE al Player MÁS CERCANO (por si hay 2: escena + DontDestroyOnLoad)
-            GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
-            if (players.Length == 0) return;
-
-            Transform closest = players[0].transform;
-            float bestDist = Vector3.Distance(transform.position, closest.position);
-
-            for (int i = 1; i < players.Length; i++)
-            {
-                float d = Vector3.Distance(transform.position, players[i].transform.position);
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    closest = players[i].transform;
-                }
-            }
-
-            player = closest;
-
-            if (isDead || isStunned) return;
-
-            // 2) Comprobar vida del player
-            BossFightPlayerHealth playerHealth = player.GetComponent<BossFightPlayerHealth>();
-            if (playerHealth != null && playerHealth.isDead)
-            {
-                animator.SetBool("isMoving", false);
-                return;
-            }
-
-            // 3) Distancia, movimiento y ataque
-            float distance = bestDist;
-            bool inAttackRange = distance <= attackRange;
-            bool shouldMove = !isAttacking && !inAttackRange;
-
-            // ROTACIÓN hacia el player
-            if (!isAttacking)
-            {
-                Vector3 targetPos = player.position;
-                targetPos.y = transform.position.y;
-
-                Vector3 lookDir = targetPos - transform.position;
-                if (lookDir.sqrMagnitude > 0.001f)
-                {
-                    Quaternion targetRot = Quaternion.LookRotation(lookDir);
-                    transform.rotation = Quaternion.Slerp(
-                        transform.rotation,
-                        targetRot,
-                        Time.deltaTime * 5f
-                    );
-                }
-            }
+        // ---------------------------------------------------------
+        // 🔍 Buscar automáticamente al jugador real en la escena
+        // ---------------------------------------------------------
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
             else
+                return; // no hay jugador aún, no hacemos nada este frame
+        }
+        // ---------------------------------------------------------
+
+        if (isDead || isStunned) return;
+
+        // ⚠️ AHORA usa BossFightPlayerHealth
+        BossFightPlayerHealth playerHealth = player.GetComponent<BossFightPlayerHealth>();
+        if (playerHealth != null && playerHealth.isDead)
+        {
+            animator.SetBool("isMoving", false);
+            return;
+        }
+
+        float distance = Vector3.Distance(transform.position, player.position);
+
+        // ---------------- ROTACIÓN ----------------
+        if (!isAttacking)
+        {
+            Vector3 lookDir = (player.position - transform.position);
+            lookDir.y = 0;
+
+            if (lookDir != Vector3.zero)
             {
-                transform.rotation = attackRotation;
-            }
-
-            // MOVIMIENTO
-            animator.SetBool("isMoving", shouldMove);
-
-            if (shouldMove)
-            {
-                Vector3 targetPos = player.position;
-                targetPos.y = transform.position.y;
-
-                transform.position = Vector3.MoveTowards(
-                    transform.position,
-                    targetPos,
-                    moveSpeed * Time.deltaTime
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    Quaternion.LookRotation(lookDir),
+                    Time.deltaTime * 5f
                 );
             }
+        }
+        else
+        {
+            transform.rotation = attackRotation;
+        }
 
-            // ATAQUE
-            if (canAttack && !isAttacking && inAttackRange)
+        // -------------- MOVIMIENTO / ATAQUE --------------
+        bool inAttackRange = distance <= attackRange;
+        bool shouldMove = !isAttacking && !inAttackRange;
+
+        animator.SetBool("isMoving", shouldMove);
+
+        if (shouldMove)
+        {
+            transform.position += transform.forward * moveSpeed * Time.deltaTime;
+        }
+        else
+        {
+            if (!isAttacking && canAttack && inAttackRange)
             {
                 StartCoroutine(Attack());
             }
-
-            // FASE 2
-            bool shouldRun = currentHealth <= maxHealth * runHealthThreshold;
-            animator.SetBool("isRunning", shouldRun);
-
-            if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
-            {
-                StartPhase2();
-            }
-
-            // Failsafe por si la animación no llama EndAttack
-            ForceEndAttackIfStuck();
         }
 
+        // -------------- FASE 2 / CORRER --------------
+        bool shouldRun = currentHealth <= maxHealth * runHealthThreshold;
+        animator.SetBool("isRunning", shouldRun);
 
-        IEnumerator Attack()
+        if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
+        {
+            StartPhase2();
+        }
+
+        // -------------- ANTI-BUG DE ATAQUE --------------
+        ForceEndAttackIfStuck();
+    }
+
+    IEnumerator Attack()
     {
         Debug.Log("START ATTACK");
 
@@ -193,7 +178,8 @@ public class BossController : MonoBehaviour
     // Llamado desde Animation Event para aplicar daño
     public void AnalizarAtaque()
     {
-        HashSet<PlayerHealth> yaGolpeados = new HashSet<PlayerHealth>();
+        // ⚠️ AHORA usamos BossFightPlayerHealth
+        HashSet<BossFightPlayerHealth> yaGolpeados = new HashSet<BossFightPlayerHealth>();
 
         switch (currentAttack)
         {
@@ -218,7 +204,7 @@ public class BossController : MonoBehaviour
         }
     }
 
-    void RevisarGolpe(Transform point, HashSet<PlayerHealth> yaGolpeados)
+    void RevisarGolpe(Transform point, HashSet<BossFightPlayerHealth> yaGolpeados)
     {
         if (point == null) return;
 
@@ -228,7 +214,8 @@ public class BossController : MonoBehaviour
         {
             if (!hit.CompareTag("Player")) continue;
 
-            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
+            // 👇 Usamos GetComponentInParent por si el collider está en un hijo del Player
+            BossFightPlayerHealth playerHealth = hit.GetComponentInParent<BossFightPlayerHealth>();
             if (playerHealth == null) continue;
 
             if (yaGolpeados.Contains(playerHealth)) continue;
@@ -242,7 +229,8 @@ public class BossController : MonoBehaviour
             else
             {
                 playerHealth.TomarDaño(attackDamage);
-                Debug.Log("Boss golpea al jugador!");
+                Debug.Log("Boss golpea al jugador. Daño: " + attackDamage +
+                          " | Vida jugador ahora: " + playerHealth.currentHealth);
             }
         }
     }
@@ -272,6 +260,8 @@ public class BossController : MonoBehaviour
 
         currentHealth -= amount;
         animator.SetTrigger("Hit");
+
+        Debug.Log("Boss recibe " + amount + " de daño. Vida boss ahora: " + currentHealth);
 
         if (currentHealth <= 0)
             Die();
@@ -303,6 +293,8 @@ public class BossController : MonoBehaviour
             Gizmos.DrawWireSphere(rightFootPoint.position, attackRadius);
     }
 }
+
+
 
 
 

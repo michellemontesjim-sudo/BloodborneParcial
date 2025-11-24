@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-
 public class BossFightPlayerHealth : MonoBehaviour
 {
     public enum CombatState
@@ -49,6 +48,9 @@ public class BossFightPlayerHealth : MonoBehaviour
 
         // 4) aplicar daño
         currentHealth -= daño;
+        if (currentHealth < 0) currentHealth = 0;
+
+        Debug.Log("Jugador recibe " + daño + " de daño. Vida jugador ahora: " + currentHealth);
 
         if (currentHealth > 0)
         {
@@ -58,8 +60,12 @@ public class BossFightPlayerHealth : MonoBehaviour
         {
             state = CombatState.Dead;
             isDead = true;
+
             if (anim != null)
-                anim.SetTrigger("Muerto");
+                anim.SetTrigger("Die");
+
+            // Activar pantalla de Game Over
+            FindObjectOfType<GameOverManager>().ShowGameOver();
         }
     }
 
@@ -68,7 +74,7 @@ public class BossFightPlayerHealth : MonoBehaviour
         state = CombatState.Hurt;
 
         if (anim != null)
-            anim.SetTrigger("Herido");
+            anim.SetTrigger("Hit");          // ⬅️ antes era "Herido"
 
         yield return new WaitForSeconds(0.3f); // duración anim de golpe
 
