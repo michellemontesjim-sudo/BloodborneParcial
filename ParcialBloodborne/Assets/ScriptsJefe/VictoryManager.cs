@@ -9,8 +9,7 @@ public class VictoryManager : MonoBehaviour
 
     [Header("Créditos")]
     public GameObject creditsPanel;      // otro panel con el video
-    public VideoPlayer creditsVideo;     // componente VideoPlayer
-    public string mainMenuSceneName = "Menu";  
+    public VideoPlayer creditsVideo;     // componente VideoPlayer 
 
     void Start()
     {
@@ -30,6 +29,8 @@ public class VictoryManager : MonoBehaviour
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
+        FindObjectOfType<BGMController>().StopMusic();
+
         if (victoryPanel != null)
             victoryPanel.SetActive(true);
     }
@@ -38,7 +39,7 @@ public class VictoryManager : MonoBehaviour
     public void OnClickMainMenu()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(mainMenuSceneName);
+        SceneManager.LoadScene("Menu"); ;
     }
 
     // Botón "Ver créditos"

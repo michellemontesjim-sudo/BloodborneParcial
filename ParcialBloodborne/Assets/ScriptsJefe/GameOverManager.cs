@@ -29,6 +29,10 @@ public class GameOverManager : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+
+        FindObjectOfType<BGMController>().StopMusic();
+        gameOverUI.SetActive(true);
+        Time.timeScale = 0f;
     }
 
     public void Retry()
@@ -43,6 +47,7 @@ public class GameOverManager : MonoBehaviour
         Time.timeScale = 1f;
         SceneManager.LoadScene("Menu");
     }
+
 }
 
 
