@@ -74,7 +74,7 @@ public class BossFightPlayerHealth : MonoBehaviour
         state = CombatState.Hurt;
 
         if (anim != null)
-            anim.SetTrigger("Hit");          // ⬅️ antes era "Herido"
+            anim.SetTrigger("Herido");   
 
         yield return new WaitForSeconds(0.3f); // duración anim de golpe
 

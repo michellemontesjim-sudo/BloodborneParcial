@@ -3,14 +3,18 @@ using UnityEngine.SceneManagement;
 
 public class GameOverManager : MonoBehaviour
 {
-    public GameObject gameOverUI;
+    public GameObject gameOverUI;  // Panel de Game Over
+    public GameObject hudUI;       // El objeto HUD con las barras
 
     void Start()
     {
         if (gameOverUI != null)
             gameOverUI.SetActive(false);
 
-        Time.timeScale = 1f; // por si saliste de una partida pausada
+        if (hudUI != null)
+            hudUI.SetActive(true);   // HUD visible al inicio
+
+        Time.timeScale = 1f;
     }
 
     public void ShowGameOver()
@@ -18,9 +22,11 @@ public class GameOverManager : MonoBehaviour
         if (gameOverUI != null)
             gameOverUI.SetActive(true);
 
+        if (hudUI != null)
+            hudUI.SetActive(false);  // ocultar barras
+
         Time.timeScale = 0f;
 
-        // 👇 IMPORTANTÍSIMO: liberar y mostrar el cursor
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
@@ -28,12 +34,7 @@ public class GameOverManager : MonoBehaviour
     public void Retry()
     {
         Time.timeScale = 1f;
-
-        // Si tu controlador de player usa cursor bloqueado,
-        // lo puedes volver a bloquear aquí si quieres:
-        // Cursor.lockState = CursorLockMode.Locked;
-        // Cursor.visible = false;
-
+        // Si recargas la escena, el Start volverá a encender el HUD
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -43,4 +44,5 @@ public class GameOverManager : MonoBehaviour
         SceneManager.LoadScene("Menu");
     }
 }
+
 
