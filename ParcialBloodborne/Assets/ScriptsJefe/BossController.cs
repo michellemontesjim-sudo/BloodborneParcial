@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;   // ← necesario para NavMeshAgent
+using UnityEngine.AI;   
 
 public class BossController : MonoBehaviour
 {
