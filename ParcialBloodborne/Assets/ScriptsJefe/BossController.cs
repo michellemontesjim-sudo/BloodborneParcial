@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;   // ← necesario para NavMeshAgent
 
 public class BossController : MonoBehaviour
 {
@@ -18,7 +19,12 @@ public class BossController : MonoBehaviour
     public Transform rightFootPoint;
     public float attackRadius = 1f;
 
-    public float runHealthThreshold = 0.3f; // porcentaje de vida para empezar a correr (30%)
+    public float runHealthThreshold = 0.3f;
+
+    // ------------ Persecución / regreso ------------
+    [Header("Persecución / Regreso")]
+    public float chaseRadius = 9f;          // radio máximo para seguir al jugador
+    public float returnStopDistance = 0.5f; // qué tan cerca del origen se considera que llegó
 
     private bool canAttack = true;
     private bool isPhase2 = false;
@@ -28,6 +34,21 @@ public class BossController : MonoBehaviour
     private Quaternion attackRotation;
     private int currentAttack = 1;
 
+    // Punto inicial y NavMesh
+    private Vector3 startPosition;
+    private Quaternion startRotation;
+    private NavMeshAgent agent;
+
+    // Estado simple del boss
+    private enum BossState
+    {
+        IdleGuard,   // quieto en el punto inicial
+        Chasing,     // persiguiendo al jugador
+        Returning    // regresando al punto inicial
+    }
+
+    private BossState state = BossState.IdleGuard;
+
     void Start()
     {
         currentHealth = maxHealth;
@@ -35,142 +56,306 @@ public class BossController : MonoBehaviour
         if (animator == null)
             animator = GetComponent<Animator>();
 
-        // Por seguridad: empezamos sin ataque seleccionado
         animator.SetInteger("NumAttack", 0);
+
+        // Guardamos el punto inicial y la rotación con la que nace el boss
+        startPosition = transform.position;
+        startRotation = transform.rotation;
+
+        // Configurar NavMeshAgent
+        agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            agent.speed = moveSpeed;
+            agent.updateRotation = false;  // nosotros controlamos la rotación
+            agent.stoppingDistance = 0f;
+        }
     }
 
     void Update()
     {
-            // 1) Buscar SIEMPRE al Player MÁS CERCANO (por si hay 2: escena + DontDestroyOnLoad)
-            GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
-            if (players.Length == 0) return;
-
-            Transform closest = players[0].transform;
-            float bestDist = Vector3.Distance(transform.position, closest.position);
-
-            for (int i = 1; i < players.Length; i++)
-            {
-                float d = Vector3.Distance(transform.position, players[i].transform.position);
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    closest = players[i].transform;
-                }
-            }
-
-            player = closest;
-
-            if (isDead || isStunned) return;
-
-            // 2) Comprobar vida del player
-            BossFightPlayerHealth playerHealth = player.GetComponent<BossFightPlayerHealth>();
-            if (playerHealth != null && playerHealth.isDead)
-            {
-                animator.SetBool("isMoving", false);
+        // Buscar player automáticamente
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+            else
                 return;
-            }
+        }
 
-            // 3) Distancia, movimiento y ataque
-            float distance = bestDist;
-            bool inAttackRange = distance <= attackRange;
-            bool shouldMove = !isAttacking && !inAttackRange;
+        if (isDead || isStunned) return;
 
-            // ROTACIÓN hacia el player
+        BossFightPlayerHealth playerHealth = player.GetComponent<BossFightPlayerHealth>();
+        if (playerHealth != null && playerHealth.isDead)
+        {
+            animator.SetBool("isMoving", false);
+            if (agent != null) agent.isStopped = true;
+            return;
+        }
+
+        float distToPlayer = Vector3.Distance(transform.position, player.position);
+        float distToStart = Vector3.Distance(transform.position, startPosition);
+
+        // ---------------- CAMBIOS DE ESTADO ----------------
+        switch (state)
+        {
+            case BossState.IdleGuard:
+                // si el jugador entra al radio → perseguir
+                if (distToPlayer <= chaseRadius)
+                    state = BossState.Chasing;
+                break;
+
+            case BossState.Chasing:
+                // si el jugador se sale del radio → volver al origen
+                if (distToPlayer > chaseRadius + 0.1f)
+                    state = BossState.Returning;
+                break;
+
+            case BossState.Returning:
+                // si el jugador vuelve a entrar al radio → perseguir otra vez
+                if (distToPlayer <= chaseRadius)
+                {
+                    state = BossState.Chasing;
+                }
+                // si ya llegó cerca del origen → quedarse de guardia
+                else if (distToStart <= returnStopDistance)
+                {
+                    state = BossState.IdleGuard;
+                }
+                break;
+        }
+
+        // ---------------- COMPORTAMIENTO POR ESTADO ----------------
+        switch (state)
+        {
+            case BossState.IdleGuard:
+                BehaviourIdleGuard();
+                break;
+
+            case BossState.Chasing:
+                BehaviourChasing(distToPlayer);
+                break;
+
+            case BossState.Returning:
+                BehaviourReturning(distToStart);
+                break;
+        }
+
+        // -------------- FASE 2 / CORRER --------------
+        bool shouldRun = isPhase2;
+        animator.SetBool("isRunning", shouldRun);
+
+        if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
+        {
+            StartPhase2();
+        }
+
+        // -------------- ANTI-BUG DE ATAQUE --------------
+        ForceEndAttackIfStuck();
+    }
+
+    // --------- ESTADO: QUIETO EN EL PUNTO INICIAL ---------
+    void BehaviourIdleGuard()
+    {
+        if (agent != null)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+        }
+
+        animator.SetBool("isMoving", false);
+
+        // Mirar hacia la rotación inicial
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            startRotation,
+            Time.deltaTime * 5f
+        );
+    }
+
+    // --------- ESTADO: PERSIGUIENDO AL JUGADOR ---------
+    void BehaviourChasing(float distToPlayer)
+    {
+        // Si no hay NavMeshAgent, usar el movimiento viejo por si acaso
+        if (agent == null)
+        {
             if (!isAttacking)
             {
-                Vector3 targetPos = player.position;
-                targetPos.y = transform.position.y;
+                Vector3 lookDir = (player.position - transform.position);
+                lookDir.y = 0;
 
-                Vector3 lookDir = targetPos - transform.position;
-                if (lookDir.sqrMagnitude > 0.001f)
+                if (lookDir != Vector3.zero)
                 {
-                    Quaternion targetRot = Quaternion.LookRotation(lookDir);
                     transform.rotation = Quaternion.Slerp(
                         transform.rotation,
-                        targetRot,
+                        Quaternion.LookRotation(lookDir),
                         Time.deltaTime * 5f
                     );
                 }
             }
             else
             {
+                // Mientras ataca, se queda con la rotación del inicio del ataque
                 transform.rotation = attackRotation;
             }
 
-            // MOVIMIENTO
-            animator.SetBool("isMoving", shouldMove);
+            bool inAttackRangeOld = distToPlayer <= attackRange;
+            bool shouldMoveOld = !isAttacking && !inAttackRangeOld;
 
-            if (shouldMove)
+            animator.SetBool("isMoving", shouldMoveOld);
+
+            if (shouldMoveOld)
             {
-                Vector3 targetPos = player.position;
-                targetPos.y = transform.position.y;
-
-                transform.position = Vector3.MoveTowards(
-                    transform.position,
-                    targetPos,
-                    moveSpeed * Time.deltaTime
-                );
+                transform.position += transform.forward * moveSpeed * Time.deltaTime;
             }
-
-            // ATAQUE
-            if (canAttack && !isAttacking && inAttackRange)
+            else if (!isAttacking && canAttack && inAttackRangeOld)
             {
                 StartCoroutine(Attack());
             }
 
-            // FASE 2
-            bool shouldRun = currentHealth <= maxHealth * runHealthThreshold;
-            animator.SetBool("isRunning", shouldRun);
-
-            if (!isPhase2 && currentHealth <= maxHealth * 0.5f)
-            {
-                StartPhase2();
-            }
-
-            // Failsafe por si la animación no llama EndAttack
-            ForceEndAttackIfStuck();
+            return;
         }
 
+        // 🔒 NUEVO: si está atacando, NO se mueve NI persigue, solo se queda plantado
+        if (isAttacking)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+            transform.rotation = attackRotation;
+            animator.SetBool("isMoving", false);
+            return;
+        }
 
-        IEnumerator Attack()
+        bool inAttackRange = distToPlayer <= attackRange;
+
+        if (inAttackRange)
+        {
+            // Parar el agent y atacar
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+
+            // Antes de lanzar el ataque, mirar hacia el jugador
+            Vector3 dir = player.position - transform.position;
+            dir.y = 0f;
+            if (dir != Vector3.zero)
+            {
+                Quaternion rot = Quaternion.LookRotation(dir);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    rot,
+                    Time.deltaTime * 7f
+                );
+            }
+
+            animator.SetBool("isMoving", false);
+
+            if (!isAttacking && canAttack)
+                StartCoroutine(Attack());
+        }
+        else
+        {
+            // Perseguir usando NavMesh
+            agent.isStopped = false;
+            agent.speed = moveSpeed;
+            agent.SetDestination(player.position);
+
+            // Rotar en la dirección de movimiento
+            Vector3 vel = agent.desiredVelocity;
+            vel.y = 0f;
+
+            if (vel.sqrMagnitude > 0.01f)
+            {
+                Quaternion rot = Quaternion.LookRotation(vel);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    rot,
+                    Time.deltaTime * 7f
+                );
+            }
+
+            animator.SetBool("isMoving", agent.velocity.magnitude > 0.1f);
+        }
+    }
+
+    // --------- ESTADO: REGRESANDO AL PUNTO INICIAL ---------
+    void BehaviourReturning(float distToStart)
     {
-        Debug.Log("START ATTACK");
+        if (agent == null)
+            return;
 
+        agent.isStopped = false;
+        agent.speed = moveSpeed;
+        agent.SetDestination(startPosition);
+
+        if (distToStart > returnStopDistance)
+        {
+            // Rotar hacia el punto de origen
+            Vector3 vel = agent.desiredVelocity;
+            vel.y = 0f;
+            if (vel.sqrMagnitude < 0.01f)
+            {
+                vel = startPosition - transform.position;
+                vel.y = 0f;
+            }
+
+            if (vel.sqrMagnitude > 0.001f)
+            {
+                Quaternion rot = Quaternion.LookRotation(vel);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    rot,
+                    Time.deltaTime * 7f
+                );
+            }
+
+            animator.SetBool("isMoving", agent.velocity.magnitude > 0.1f);
+        }
+        else
+        {
+            // Ya llegó suficientemente cerca del origen
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+            animator.SetBool("isMoving", false);
+
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                startRotation,
+                Time.deltaTime * 5f
+            );
+        }
+
+        // En este estado NO ataca
+    }
+
+    // ------------------- ATAQUE / DAÑO -------------------
+    IEnumerator Attack()
+    {
         if (!canAttack || isAttacking)
-            yield break;   // por seguridad, evitar ataques dobles
+            yield break;
 
         canAttack = false;
         isAttacking = true;
 
-        // Guardar rotación con la que empieza el ataque
+        // Guardamos la rotación con la que empieza el ataque
         attackRotation = transform.rotation;
 
-        // Elegir un ataque aleatorio entre 1 y 4
         int num = Random.Range(1, 5);
         currentAttack = num;
 
-        // Esto es lo único que necesita el Animator para ir al ataque
         animator.SetInteger("NumAttack", currentAttack);
 
-        // Solo manejamos el cooldown aquí
         yield return new WaitForSeconds(attackCooldown);
 
         canAttack = true;
-
-        Debug.Log("END ATTACK");
     }
 
-    // Llamado por Animation Event (si lo tienes) PERO
-    // también lo llamamos nosotros desde ForceEndAttackIfStuck()
     public void EndAttack()
     {
-        Debug.Log("EndAttack EVENT");
-
         isAttacking = false;
-        animator.SetInteger("NumAttack", 0);   // volver a “sin ataque”
+        animator.SetInteger("NumAttack", 0);
     }
 
-    // POR SI EL EVENTO FALLA EN ALGÚN ATAQUE
     void ForceEndAttackIfStuck()
     {
         if (!isAttacking) return;
@@ -185,15 +370,13 @@ public class BossController : MonoBehaviour
 
         if (isInAttackState && info.normalizedTime >= 0.98f)
         {
-            Debug.Log("Force EndAttack by code (normalizedTime) " + info.normalizedTime);
             EndAttack();
         }
     }
 
-    // Llamado desde Animation Event para aplicar daño
     public void AnalizarAtaque()
     {
-        HashSet<PlayerHealth> yaGolpeados = new HashSet<PlayerHealth>();
+        HashSet<BossFightPlayerHealth> yaGolpeados = new HashSet<BossFightPlayerHealth>();
 
         switch (currentAttack)
         {
@@ -218,7 +401,7 @@ public class BossController : MonoBehaviour
         }
     }
 
-    void RevisarGolpe(Transform point, HashSet<PlayerHealth> yaGolpeados)
+    void RevisarGolpe(Transform point, HashSet<BossFightPlayerHealth> yaGolpeados)
     {
         if (point == null) return;
 
@@ -228,7 +411,7 @@ public class BossController : MonoBehaviour
         {
             if (!hit.CompareTag("Player")) continue;
 
-            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
+            BossFightPlayerHealth playerHealth = hit.GetComponentInParent<BossFightPlayerHealth>();
             if (playerHealth == null) continue;
 
             if (yaGolpeados.Contains(playerHealth)) continue;
@@ -236,13 +419,13 @@ public class BossController : MonoBehaviour
 
             if (playerHealth.isParrying)
             {
-                Debug.Log("Parry exitoso! Boss aturdido.");
                 StartCoroutine(Stun(2f));
             }
             else
             {
                 playerHealth.TomarDaño(attackDamage);
-                Debug.Log("Boss golpea al jugador!");
+                Debug.Log("Boss golpea al jugador. Daño: " + attackDamage +
+                          " | Vida jugador ahora: " + playerHealth.currentHealth);
             }
         }
     }
@@ -262,8 +445,10 @@ public class BossController : MonoBehaviour
         attackDamage *= 2;
         attackCooldown *= 0.8f;
         animator.SetTrigger("Enrage");
-        Debug.Log("¡El Boss entra en la Fase 2!");
+
         GetComponentInChildren<Renderer>().material.color = Color.red;
+
+        if (agent != null) agent.speed = moveSpeed;
     }
 
     public void TakeDamage(float amount)
@@ -272,6 +457,8 @@ public class BossController : MonoBehaviour
 
         currentHealth -= amount;
         animator.SetTrigger("Hit");
+
+        Debug.Log("Boss recibe " + amount + " de daño. Vida boss ahora: " + currentHealth);
 
         if (currentHealth <= 0)
             Die();
@@ -283,33 +470,44 @@ public class BossController : MonoBehaviour
         animator.SetTrigger("Die");
         Debug.Log("Boss derrotado");
 
+        if (agent != null)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+        }
+
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
-        this.enabled = false;
+        // 👇 ya NO desactivamos inmediatamente el script,
+        // esperamos 3 segundos para mostrar la victoria
+        StartCoroutine(ShowVictoryAfterDelay());
     }
 
+    IEnumerator ShowVictoryAfterDelay()
+    {
+        // esperar 3 segundos para que se vea bien la animación de muerte
+        yield return new WaitForSeconds(2f);
+
+        VictoryManager vm = FindObjectOfType<VictoryManager>();
+        if (vm != null)
+            vm.ShowVictory();
+
+        // ahora sí desactivamos el script del boss si quieres
+        this.enabled = false;
+    }
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.red;
+        // Radio de persecución
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, chaseRadius);
 
+        Gizmos.color = Color.red;
         if (rightHandPoint != null)
             Gizmos.DrawWireSphere(rightHandPoint.position, attackRadius);
-
         if (leftHandPoint != null)
             Gizmos.DrawWireSphere(leftHandPoint.position, attackRadius);
-
         if (rightFootPoint != null)
             Gizmos.DrawWireSphere(rightFootPoint.position, attackRadius);
     }
 }
-
-
-
-
-
-
-
-
-
-
