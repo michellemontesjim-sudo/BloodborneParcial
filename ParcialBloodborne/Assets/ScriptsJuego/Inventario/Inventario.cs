@@ -33,13 +33,19 @@ public class Inventario : MonoBehaviour
         if (item.esConsumible)
         {
             PlayerHealth player = FindObjectOfType<PlayerHealth>();
+            
+
             player.salud += item.valor;
+
+            
             if (player.salud > player.maxSalud)
                 player.salud = player.maxSalud;
             Debug.Log("Curado +" + item.valor);
 
+            
             if (player.healthBar != null)
                 player.healthBar.UpdateHealthBar(player.salud, player.maxSalud);
+
 
             items.Remove(item);
         }
