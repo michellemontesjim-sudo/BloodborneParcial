@@ -1,10 +1,11 @@
-﻿using UnityEngine;
+﻿using System.Collections;            // ⬅ IMPORTANTE para IEnumerator
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class GameOverManager : MonoBehaviour
 {
     public GameObject gameOverUI;  // Panel de Game Over
-    public GameObject hudUI;       // El objeto HUD con las barras
+    public GameObject hudUI;       // HUD con barras de vida, etc.
 
     void Start()
     {
@@ -12,33 +13,63 @@ public class GameOverManager : MonoBehaviour
             gameOverUI.SetActive(false);
 
         if (hudUI != null)
-            hudUI.SetActive(true);   // HUD visible al inicio
+            hudUI.SetActive(true);
 
         Time.timeScale = 1f;
     }
 
     public void ShowGameOver()
     {
+        // ocultar HUD
+        if (hudUI != null)
+            hudUI.SetActive(false);
+
+        // mostrar panel de Game Over
         if (gameOverUI != null)
             gameOverUI.SetActive(true);
 
-        if (hudUI != null)
-            hudUI.SetActive(false);  // ocultar barras
-
+        // pausar juego
         Time.timeScale = 0f;
 
+        // mostrar mouse
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        FindObjectOfType<BGMController>().StopMusic();
-        gameOverUI.SetActive(true);
-        Time.timeScale = 0f;
+        // reproducir sonido de muerte (AudioSource en este mismo objeto, opcional)
+        AudioSource deathAudio = GetComponent<AudioSource>();
+        if (deathAudio != null)
+            deathAudio.Play();
+
+        // fade–out de la música de fondo
+        StartCoroutine(FadeOutMusic());
+    }
+
+    IEnumerator FadeOutMusic()
+    {
+        BGMController bgmCtrl = FindObjectOfType<BGMController>();
+        if (bgmCtrl == null || bgmCtrl.bgm == null)
+            yield break;
+
+        AudioSource audio = bgmCtrl.bgm;
+        float startVolume = audio.volume;
+
+        float duration = 1.5f;  // duración del fade
+        float t = 0f;
+
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;              // funciona aunque timeScale = 0
+            audio.volume = Mathf.Lerp(startVolume, 0f, t / duration);
+            yield return null;
+        }
+
+        audio.Stop();
+        audio.volume = startVolume;                   // dejarlo listo por si se usa en otra escena
     }
 
     public void Retry()
     {
         Time.timeScale = 1f;
-        // Si recargas la escena, el Start volverá a encender el HUD
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -47,7 +78,4 @@ public class GameOverManager : MonoBehaviour
         Time.timeScale = 1f;
         SceneManager.LoadScene("Menu");
     }
-
 }
-
-

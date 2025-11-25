@@ -1,6 +1,7 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.Video;   // para el video de créditos
+using UnityEngine.Video;
 
 public class VictoryManager : MonoBehaviour
 {
@@ -8,8 +9,9 @@ public class VictoryManager : MonoBehaviour
     public GameObject victoryPanel;
 
     [Header("Créditos")]
-    public GameObject creditsPanel;      // otro panel con el video
-    public VideoPlayer creditsVideo;     // componente VideoPlayer 
+    public GameObject creditsPanel;
+    public VideoPlayer creditsVideo;
+    public string mainMenuSceneName = "Menu";
 
     void Start()
     {
@@ -20,36 +22,28 @@ public class VictoryManager : MonoBehaviour
             creditsPanel.SetActive(false);
     }
 
-    // Llamado cuando ganes
     public void ShowVictory()
     {
-        Time.timeScale = 0f; // pausa el juego
+        Time.timeScale = 0f;
 
-        // mostrar mouse
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
-
-        FindObjectOfType<BGMController>().StopMusic();
 
         if (victoryPanel != null)
             victoryPanel.SetActive(true);
+
+        StartCoroutine(FadeOutMusic());
     }
 
-    // Botón "Volver al menú"
     public void OnClickMainMenu()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene("Menu"); ;
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 
-    // Botón "Ver créditos"
     public void OnClickCredits()
     {
         Time.timeScale = 1f;
-
-        // mostrar mouse
-        Cursor.visible = true;
-        Cursor.lockState = CursorLockMode.None;
 
         if (victoryPanel != null)
             victoryPanel.SetActive(false);
@@ -61,4 +55,26 @@ public class VictoryManager : MonoBehaviour
             creditsVideo.Play();
     }
 
+    IEnumerator FadeOutMusic()
+    {
+        BGMController bgmCtrl = FindObjectOfType<BGMController>();
+        if (bgmCtrl == null || bgmCtrl.bgm == null)
+            yield break;
+
+        AudioSource audio = bgmCtrl.bgm;
+        float startVolume = audio.volume;
+
+        float duration = 1.5f;
+        float t = 0f;
+
+        while (t < duration)
+        {
+            t += Time.unscaledDeltaTime;
+            audio.volume = Mathf.Lerp(startVolume, 0f, t / duration);
+            yield return null;
+        }
+
+        audio.Stop();
+        audio.volume = startVolume;
+    }
 }
