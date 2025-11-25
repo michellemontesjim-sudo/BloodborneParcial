@@ -11,4 +11,17 @@ public class MenuController : MonoBehaviour
     {
         SceneManager.LoadScene(cinematicSceneName);
     }
+
+    public void QuitGame()
+    {
+        Debug.Log("Saliendo del juego...");
+
+        // Si estás dentro del editor, detiene el modo Play
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        // Si está compilado, cierra la aplicación
+        Application.Quit();
+#endif
+    }
 }
