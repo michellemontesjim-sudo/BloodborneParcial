@@ -24,6 +24,8 @@ public class PlayerCombat : MonoBehaviour
     private bool canParry = true;
 
     private PlayerHealth playerHealth;
+    public AudioSource audioSource;
+    public AudioClip sonidoAtaque;
 
     void Start()
     {
@@ -52,17 +54,7 @@ public class PlayerCombat : MonoBehaviour
     // ---------------------------------------------------------------------
     void StartCombo()
     {
-        /*if (!canIClick)
-            return;
-
-        cantClick++;
-
-        if (cantClick == 1)
-        {
-            
-            anim.SetInteger("Ataque", 1);
-        }*/
-
+        
         if (canIClick)
         {
             cantClick++;
@@ -76,50 +68,12 @@ public class PlayerCombat : MonoBehaviour
 
     public void VerificarCombo()
     {
-        /*canIClick = false;
-        AnimatorStateInfo info = anim.GetCurrentAnimatorStateInfo(0);
-
-        if (info.IsName("Ataque1"))
-        {
-            if (cantClick >= 2)
-            {
-                anim.SetInteger("Ataque", 2);
-            }
-            else
-            {
-                anim.SetInteger("Ataque", 0);
-                cantClick = 0;
-            }
-
-            canIClick = true;
-        }
-
-        else if (info.IsName("Ataque2"))
-        {
-            if (cantClick >= 3)
-            {
-                anim.SetInteger("Ataque", 3);
-            }
-            else
-            {
-                anim.SetInteger("Ataque", 0);
-                cantClick = 0;
-            }
-
-            canIClick = true;
-        }
-
-        else if (info.IsName("Ataque3"))
-        {
-            anim.SetInteger("Ataque", 0);
-            cantClick = 0;
-            canIClick = true;
-        }*/
-
+        
         canIClick = false;
 
         if (anim.GetCurrentAnimatorStateInfo(0).IsName("Ataque1") && cantClick == 1)
         {
+            
             anim.SetInteger("Ataque", 0);
             canIClick = true;
             cantClick = 0;
@@ -154,6 +108,7 @@ public class PlayerCombat : MonoBehaviour
     // ---------------------------------------------------------------------
     public void DealDamage()
     {
+
         Collider[] hits = Physics.OverlapSphere(attackPoint.position, attackRadius);
 
         foreach (var hit in hits)
@@ -166,6 +121,7 @@ public class PlayerCombat : MonoBehaviour
                 {
                     enemyHealth.RecibirDaño(attackDamage);
                     Debug.Log("Jugador golpea al enemigo!");
+                    audioSource.PlayOneShot(sonidoAtaque);
                 }
             }
         }

@@ -16,11 +16,12 @@ public class InventoryUI : MonoBehaviour
     public Button botonUsar;
 
     private bool inventarioAbierto;
-
+    
     void Start()
     {
         // Sincronizar con el estado inicial del panel
         inventarioAbierto = panelInventario.activeSelf;
+        
     }
 
     void Update()
@@ -94,6 +95,8 @@ public class InventoryUI : MonoBehaviour
         Inventario.instancia.Usar(item);
         RefrescarInventario();
         LimpiarDescripcion();
+        
+
     }
 
     public void LimpiarDescripcion()

@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d930642f35cc734cb89998cd406f321, type: 3}
   m_Name: Sangre de Adella
   m_EditorClassIdentifier: 
-  nombre: Cuchillo
-  icono: {fileID: 0}
+  nombre: Sangre Adella
+  icono: {fileID: 21300000, guid: 64338586c07104b47afa88c326ace284, type: 3}
   esConsumible: 1
-  valor: 20
+  valor: 24
+  descripcion: Ni mucho ni poco para sanarte

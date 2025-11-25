@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Elixir azul
   m_EditorClassIdentifier: 
   nombre: Elixir azul
-  icono: {fileID: 0}
+  icono: {fileID: 21300000, guid: a96d6490ebd51044ba1d95a5ee5815ff, type: 3}
   esConsumible: 1
   valor: 15
-  descripcion: Cura vida
+  descripcion: "Curar\xE1 tu vida"

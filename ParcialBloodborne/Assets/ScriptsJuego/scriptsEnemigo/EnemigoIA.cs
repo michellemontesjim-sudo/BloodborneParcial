@@ -24,15 +24,66 @@ public class EnemigoIA : MonoBehaviour
 
     bool yaAtaco = false;
 
+    public bool isStunned = false;
+    public float stunDuration = 5f;
+    private Coroutine stunRoutine;
+
+    public AudioSource audioSource;
+    public AudioClip sonidoAtaque;
+
+    public enum EnemyState
+    {
+        Normal,
+        Stunned,
+        Dead
+    }
+
+    public EnemyState state = EnemyState.Normal;
+
     void Start()
     {
         if (objetivo == null)
             objetivo = GameObject.FindGameObjectWithTag("Player").transform;
+        audioSource = GetComponent<AudioSource>();
     }
 
     void Update()
     {
+        if (isStunned) return;
+
+        if (objetivo == null) return;
+
+        // 1️⃣ Revisar si el jugador está muerto
+        PlayerHealth ph = objetivo.GetComponent<PlayerHealth>();
+        if (ph != null && ph.state == PlayerHealth.CombatState.Dead)
+        {
+            // detener IA del enemigo
+            agente.isStopped = true;
+            anim.SetBool("isMoving", false);
+
+            // evitar ataques
+            yaAtaco = true;
+
+            return;
+        }
+
+        // 2️⃣ Comportamiento normal
         float distancia = Vector3.Distance(transform.position, objetivo.position);
+
+        if (distancia <= rangoDeteccion && distancia > rangoAtaque)
+        {
+            Perseguir();
+        }
+        else if (distancia <= rangoAtaque)
+        {
+            Atacar();
+        }
+        else
+        {
+            Idle();
+        }
+
+        //float distancia = Vector3.Distance(transform.position, objetivo.position);
 
         // Prioridad 1: Perseguir jugador
         if (distancia <= rangoDeteccion && distancia > rangoAtaque)
@@ -106,20 +157,36 @@ public class EnemigoIA : MonoBehaviour
     // ---------- ATAQUE ----------
     void Atacar()
     {
+        if (isStunned) return;
         agente.isStopped = true;
 
         transform.LookAt(objetivo);
         anim.SetBool("isMoving", false);
 
+        
         if (!yaAtaco)
         {
             anim.SetTrigger("isAttacking");
             StartCoroutine(HacerDaño());
+            audioSource.PlayOneShot(sonidoAtaque);
         }
     }
 
     IEnumerator HacerDaño()
     {
+        var playerCombat = objetivo.GetComponent<PlayerCombat>();
+        // --- PARRY ÉXITOSO ---
+        if (playerCombat.isParrying)
+        {
+            Debug.Log("PARRY! Enemigo stuneado!");
+
+            // Stun al enemigo
+            EnemigoIA enemy = GetComponent<EnemigoIA>();
+            if (enemy != null)
+                enemy.StunEnemy();
+
+            yield break; // ✔ Termina corrutina sin hacer daño
+        }
         yaAtaco = true;
         yield return new WaitForSeconds(0.5f);
 
@@ -134,13 +201,37 @@ public class EnemigoIA : MonoBehaviour
 
         yield return new WaitForSeconds(tiempoEntreAtaques);
         yaAtaco = false;
+        
     }
-
     // ---------- MUERTE ----------
     public void Muerte()
     {
         agente.isStopped = true;
         anim.SetTrigger("Death");
         Destroy(gameObject, 3f);
+    }
+
+
+    public void StunEnemy()
+    {
+        if (stunRoutine != null)
+            StopCoroutine(stunRoutine);
+
+        stunRoutine = StartCoroutine(StunCoroutine());
+    }
+
+    IEnumerator StunCoroutine()
+    {
+        isStunned = true;
+
+        anim.SetBool("Stunned", true);
+        agente.isStopped = true; // detener movimiento
+
+        yield return new WaitForSeconds(stunDuration);
+
+        anim.SetBool("Stunned", false);
+        agente.isStopped = false;
+
+        isStunned = false;
     }
 }
