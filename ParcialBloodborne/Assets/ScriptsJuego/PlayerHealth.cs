@@ -12,8 +12,22 @@ public class PlayerHealth : MonoBehaviour
         Hurt,
         Dead
     }
+    public HealthBarPlayer healthBar;
+    public DeathScreenManager deathScreen;
+    public float salud;
+    public float maxSalud = 150f;
 
-        public float salud = 150f;
+    void Start()
+    {
+        deathScreen = FindObjectOfType<DeathScreenManager>();
+        salud = maxSalud;
+
+        healthBar.UpdateHealthBar(salud, maxSalud);
+    }
+
+
+    //public float salud;
+    //public float maxSalud = 150f;
 
         public CombatState state = CombatState.Normal;
 
@@ -42,7 +56,9 @@ public class PlayerHealth : MonoBehaviour
             // 4️⃣ Aplicar daño
             salud -= daño;
 
-            if (salud > 0)
+            healthBar.UpdateHealthBar(salud, maxSalud);
+
+        if (salud > 0)
             {
                 StartCoroutine(HurtState());
             }
@@ -50,6 +66,9 @@ public class PlayerHealth : MonoBehaviour
             {
                 state = CombatState.Dead;
                 anim.SetTrigger("Muerto");
+
+                //deathScreen.ShowDeathScreen();
+                FindAnyObjectByType<DeathScreenManager>().ShowDeathScreen();
             }
         }
 
