@@ -21,8 +21,7 @@ public class BossController : MonoBehaviour
 
     public float runHealthThreshold = 0.3f;
 
-    // ------------ Persecución / regreso ------------
-    [Header("Persecución / Regreso")]
+    // ------------ Persecución / regreso -----------
     public float chaseRadius = 9f;          // radio máximo para seguir al jugador
     public float returnStopDistance = 0.5f; // qué tan cerca del origen se considera que llegó
 
@@ -258,7 +257,7 @@ public class BossController : MonoBehaviour
             return;
         }
 
-        // 🔒 si está atacando, NO se mueve NI persigue, solo se queda plantado
+        // si está atacando, NO se mueve NI persigue, solo se queda plantado
         if (isAttacking)
         {
             agent.isStopped = true;
@@ -598,7 +597,7 @@ public class BossController : MonoBehaviour
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
-        // esperamos 2 segundos para mostrar la victoria
+        
         StartCoroutine(ShowVictoryAfterDelay());
     }
 
