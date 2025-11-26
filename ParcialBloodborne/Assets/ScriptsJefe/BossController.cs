@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;   
+using UnityEngine.AI;
 
 public class BossController : MonoBehaviour
 {
@@ -34,6 +34,19 @@ public class BossController : MonoBehaviour
     private Quaternion attackRotation;
     private int currentAttack = 1;
 
+    [Header("Audio ataques")]
+    public AudioSource audioSource;          // rugidos / golpes / enrage
+    public AudioClip enrageClip;
+    public AudioClip attack1Clip;
+    public AudioClip attack2Clip;
+    public AudioClip attack3Clip;
+    public AudioClip attack4Clip;
+
+    [Header("Audio movimiento")]
+    public AudioSource movementAudioSource;  // para loops de pasos
+    public AudioClip walkStepClip;           // heavy step (caminar)  → loop
+    public AudioClip runStepClip;            // heavy step 2 (correr) → loop
+
     // Punto inicial y NavMesh
     private Vector3 startPosition;
     private Quaternion startRotation;
@@ -48,6 +61,16 @@ public class BossController : MonoBehaviour
     }
 
     private BossState state = BossState.IdleGuard;
+
+    // Estado del sonido de movimiento
+    private enum MovementSoundState
+    {
+        None,
+        Walking,
+        Running
+    }
+
+    private MovementSoundState movementSoundState = MovementSoundState.None;
 
     void Start()
     {
@@ -69,6 +92,19 @@ public class BossController : MonoBehaviour
             agent.speed = moveSpeed;
             agent.updateRotation = false;  // nosotros controlamos la rotación
             agent.stoppingDistance = 0f;
+        }
+
+        // Audio de ataques
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
+
+        // Si no asignas movementAudioSource a mano y tienes 2 AudioSource en el boss,
+        // intenta coger el segundo automáticamente
+        if (movementAudioSource == null)
+        {
+            AudioSource[] sources = GetComponents<AudioSource>();
+            if (sources.Length > 1)
+                movementAudioSource = sources[1];
         }
     }
 
@@ -153,6 +189,11 @@ public class BossController : MonoBehaviour
 
         // -------------- ANTI-BUG DE ATAQUE --------------
         ForceEndAttackIfStuck();
+
+        // -------------- SONIDO DE MOVIMIENTO --------------
+        bool movingAnim = animator.GetBool("isMoving");
+        bool runningAnim = animator.GetBool("isRunning");
+        UpdateMovementSound(movingAnim, runningAnim);
     }
 
     // --------- ESTADO: QUIETO EN EL PUNTO INICIAL ---------
@@ -217,7 +258,7 @@ public class BossController : MonoBehaviour
             return;
         }
 
-        // 🔒 NUEVO: si está atacando, NO se mueve NI persigue, solo se queda plantado
+        // 🔒 si está atacando, NO se mueve NI persigue, solo se queda plantado
         if (isAttacking)
         {
             agent.isStopped = true;
@@ -345,6 +386,23 @@ public class BossController : MonoBehaviour
 
         animator.SetInteger("NumAttack", currentAttack);
 
+        // Sonido según el ataque
+        switch (currentAttack)
+        {
+            case 1:
+                PlayClip(attack1Clip);   // rugido para puño 3
+                break;
+            case 2:
+                PlayClip(attack2Clip);   // rugido para puño 1
+                break;
+            case 3:
+                PlayClip(attack3Clip);   // rugido para puño 2
+                break;
+            case 4:
+                PlayClip(attack4Clip);   // rugido para puño 3
+                break;
+        }
+
         yield return new WaitForSeconds(attackCooldown);
 
         canAttack = true;
@@ -372,6 +430,65 @@ public class BossController : MonoBehaviour
         {
             EndAttack();
         }
+    }
+
+    void PlayClip(AudioClip clip)
+    {
+        if (audioSource == null || clip == null) return;
+        audioSource.PlayOneShot(clip);
+    }
+
+    void UpdateMovementSound(bool isMoving, bool isRunning)
+    {
+        if (movementAudioSource == null)
+            return;
+
+        // si está muerto, aturdido o atacando, paramos los pasos
+        if (isDead || isStunned || isAttacking)
+        {
+            if (movementAudioSource.isPlaying)
+                movementAudioSource.Stop();
+
+            movementSoundState = MovementSoundState.None;
+            return;
+        }
+
+        MovementSoundState desiredState = MovementSoundState.None;
+
+        if (isMoving)
+        {
+            desiredState = isRunning ? MovementSoundState.Running : MovementSoundState.Walking;
+        }
+
+        if (desiredState == movementSoundState)
+            return; // ya estamos en ese estado
+
+        switch (desiredState)
+        {
+            case MovementSoundState.None:
+                movementAudioSource.Stop();
+                break;
+
+            case MovementSoundState.Walking:
+                if (walkStepClip != null)
+                {
+                    movementAudioSource.clip = walkStepClip;
+                    movementAudioSource.loop = true;
+                    movementAudioSource.Play();
+                }
+                break;
+
+            case MovementSoundState.Running:
+                if (runStepClip != null)
+                {
+                    movementAudioSource.clip = runStepClip;
+                    movementAudioSource.loop = true;
+                    movementAudioSource.Play();
+                }
+                break;
+        }
+
+        movementSoundState = desiredState;
     }
 
     public void AnalizarAtaque()
@@ -440,6 +557,8 @@ public class BossController : MonoBehaviour
 
     void StartPhase2()
     {
+        PlayClip(enrageClip);    // sonido "enrage"
+
         isPhase2 = true;
         moveSpeed *= 1.5f;
         attackDamage *= 2;
@@ -479,23 +598,21 @@ public class BossController : MonoBehaviour
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
-        // 👇 ya NO desactivamos inmediatamente el script,
-        // esperamos 3 segundos para mostrar la victoria
+        // esperamos 2 segundos para mostrar la victoria
         StartCoroutine(ShowVictoryAfterDelay());
     }
 
     IEnumerator ShowVictoryAfterDelay()
     {
-        // esperar 3 segundos para que se vea bien la animación de muerte
         yield return new WaitForSeconds(2f);
 
         VictoryManager vm = FindObjectOfType<VictoryManager>();
         if (vm != null)
             vm.ShowVictory();
 
-        // ahora sí desactivamos el script del boss si quieres
         this.enabled = false;
     }
+
     void OnDrawGizmosSelected()
     {
         // Radio de persecución
